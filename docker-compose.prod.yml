@@ -1,0 +1,99 @@
+# 生产环境覆盖配置（4核4G 服务器调优 + 安全收紧）
+#
+# 用法（与基础 compose 叠加）：
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 相比基础 docker-compose.yml 的改动：
+#   1. ES / Neo4j 堆内存降到 512m，适配 4G 内存
+#   2. 各容器加内存上限，防单个服务吃爆整机
+#   3. 数据库 / ES / Neo4j / Redis / api 端口只绑定本机回环 127.0.0.1，
+#      不对公网暴露（仅容器内部互通；本机可用，方便 SSH 隧道从本地连库）
+#      —— 用 !override 强制替换基础配置的端口（compose 对 ports 默认是追加合并，
+#         空列表 [] 盖不掉，必须用 !override）
+#   4. worker 并发调小，降低内存占用
+#   5. web 映射到宿主 80 端口，直接 http://服务器IP 访问
+services:
+  postgres:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:5432:5432"
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+
+  elasticsearch:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:9200:9200"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"   # 堆降到 512m
+    deploy:
+      resources:
+        limits:
+          memory: 1200m
+
+  neo4j:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-cometneo4j}
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    deploy:
+      resources:
+        limits:
+          memory: 1100m
+
+  redis:
+    restart: unless-stopped
+    ports: !override
+      - "127.0.0.1:6379:6379"
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  api:
+    restart: unless-stopped
+    # 只绑定本机回环：不直接对公网，由 web 容器的 nginx 反代 /api；本机可访问便于排查
+    ports: !override
+      - "127.0.0.1:8000:8000"
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  worker:
+    restart: unless-stopped
+    # 4G 内存：并发调小，避免多任务同时跑 LLM 撑爆内存
+    command: celery -A app.celery_app.celery_app worker -l info -Q default,parse,memory,beat,research --pool=threads --concurrency=3
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  beat:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  web:
+    restart: unless-stopped
+    # 宿主 80（HTTP，会被 nginx 301 跳转到 HTTPS）+ 443（HTTPS）
+    ports: !override
+      - "80:80"
+      - "443:443"
+    # 证书目录挂进容器（只读）；证书文件由人工传到服务器 ./web/certs/
+    volumes:
+      - ./web/certs:/etc/nginx/certs:ro

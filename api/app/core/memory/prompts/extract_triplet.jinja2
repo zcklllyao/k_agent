@@ -1,0 +1,164 @@
+===任务===
+从给定的陈述句中抽取「实体」与「知识三元组（主语-谓词-宾语）」。只输出合法 JSON。
+
+===重要规则===
+- `name`、`subject_name`、`object_name` 默认保持原文表面形式，不要翻译。
+- 抽取前先做指代解析：用户自指（"我""我的""我自己"）一律规范为「用户」；用户本人实体的 `name` 必须始终是「用户」。
+- 其他代词/指示词（"他""她""它""这个""那家""这里"）若能从上下文稳定解析出具体指代，则替换为具体实体名；不能稳定解析则整条跳过，返回空结果。
+- 命名关系中新出现的称呼、别名、昵称、产品名保持原样。
+- `description` 必须使用中文，简洁、能区分实体。
+- `type` 必须使用下方预定义的中文实体类型标签；`predicate` 必须使用下方预定义的中文关系谓词标签；不要发明新类型/新谓词。
+- 每个 triplet 必须输出 `predicate_surface`：原文中表达该关系的关系短语；没有更贴近的就用 canonical `predicate`。
+- 每个 triplet 必须携带 `valid_at` 和 `invalid_at`，直接复制输入中的同名字段，不要自行推断。
+- 每个实体和每个 triplet 都要输出 `importance`（0~1，对用户长期画像的重要度：核心身份/关系/目标高，琐碎临时低）和 `confidence`（0~1，信息确定性：明确陈述高，推测模糊低）。
+
+===输入===
+陈述句：
+"""
+{{ statement }}
+"""
+{% if context %}
+背景上下文（仅用于理解指代，不作为抽取来源）：
+"""
+{{ context }}
+"""
+{% endif %}
+- valid_at: {{ valid_at | default("NULL") }}
+- invalid_at: {{ invalid_at | default("NULL") }}
+- dialog_at: {{ dialog_at | default("NULL") }}
+
+===预定义实体类型===
+只能使用以下中文实体类型，没有完全匹配的就选最接近的一项：
+{% for name, definition in entity_types.items() %}
+- `{{ name }}`：{{ definition }}
+{% endfor %}
+
+实体抽取总规则：
+- 不要把完整命题、因果链、价值判断、口号式表达拆成多个低价值实体（如"努力就会有回报"不应抽出"努力""回报"）。
+- 普通时间表达（日期、明天、今晚八点）、一次性动作短语、情绪/心理状态（紧张、开心）默认不作为独立实体。
+- 实体 `name` 命名优先级（重要）：
+  ① **原文有专有名词/具体名称（人名、地名、机构、品牌、产品、宠物名等）时必须用专名原形**——如「复旦大学」「成都」「团子」「京都」「索尼相机」，**不要**替换成「用户的大学」「用户老家」「用户的猫」这类泛指描述；
+  ② 没有专名但有稳定关系时，才用稳定语义限定补全（如「用户就职的公司」「用户的手机」），不要只写裸泛称「公司」「手机」；
+  ③ 用户本人节点固定命名「用户」；地名可带上位限定使其更完整（如「上海徐汇区」）。
+- 若原文同时给出专名和泛称（如"我养的布偶猫叫团子"→ 猫即团子），以**专名**作实体 name（团子），归属关系用三元组表达（用户-拥有-团子），不要再单独建「用户的布偶猫」实体。
+- 若有值得保留的实体但无有效关系，可只返回 entities，triplets 设为 []。
+
+===预定义关系谓词===
+只能使用以下中文关系谓词，没有完全匹配的就选最接近的一项：
+{% for name, definition in predicates.items() %}
+- `{{ name }}`：{{ definition }}
+{% endfor %}
+
+关系抽取规则：
+- 只有陈述中表达了清晰关系时才抽取 (subject, predicate, object)。
+- `别名属于` 方向始终是 别名 → 别名属于 → 规范实体；规范实体是「被命名的那个实体」本身。
+- `关联于` 是受限弱关系，不得用来连接抽象概念、口号或仅为补全结构的关系。
+- 不要把普通时间表达作为 triplet 的宾语。
+- `subject_name` 必须与 `subject_id` 指向实体的 `name` 完全一致；`object_name` 同理。
+
+===示例===
+陈述："用户住在巴黎。"（dialog_at = 2025-04-10T14:30:00Z）
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "居住在巴黎的用户"},
+    {"entity_idx": 1, "name": "巴黎", "type": "地点设施", "description": "用户居住的城市"}
+  ],
+  "triplets": [
+    {"subject_name": "用户", "subject_id": 0, "predicate": "位于", "predicate_surface": "住在", "object_name": "巴黎", "object_id": 1, "value": null, "valid_at": "NULL", "invalid_at": "NULL"}
+  ]
+}
+
+陈述："用户的GitHub用户名是chen4。"
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "拥有该GitHub账号的用户"},
+    {"entity_idx": 1, "name": "用户的GitHub账号", "type": "识别联系信息", "description": "用户拥有的GitHub账号"},
+    {"entity_idx": 2, "name": "chen4", "type": "识别联系信息", "description": "用户GitHub账号的用户名"}
+  ],
+  "triplets": [
+    {"subject_name": "用户", "subject_id": 0, "predicate": "拥有", "predicate_surface": "的", "object_name": "用户的GitHub账号", "object_id": 1, "value": null, "valid_at": "NULL", "invalid_at": "NULL"},
+    {"subject_name": "用户的GitHub账号", "subject_id": 1, "predicate": "拥有", "predicate_surface": "用户名是", "object_name": "chen4", "object_id": 2, "value": null, "valid_at": "NULL", "invalid_at": "NULL"}
+  ]
+}
+
+陈述："用户认为努力就会有回报。"
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "认为努力就会有回报的用户"}
+  ],
+  "triplets": []
+}
+
+陈述："用户养的布偶猫叫团子。"（演示：原文给了专名「团子」，实体 name 用专名，不要用「用户的布偶猫」）
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "养了布偶猫团子的用户"},
+    {"entity_idx": 1, "name": "团子", "type": "生命体", "description": "用户养的布偶猫"}
+  ],
+  "triplets": [
+    {"subject_name": "用户", "subject_id": 0, "predicate": "拥有", "predicate_surface": "养的", "object_name": "团子", "object_id": 1, "value": null, "valid_at": "NULL", "invalid_at": "NULL"}
+  ]
+}
+
+陈述："用户在复旦大学读新闻系，老家在成都。"（演示：专名「复旦大学」「成都」直接作 name，不要用「用户的大学」「用户老家」）
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "复旦大学新闻系、老家成都的用户"},
+    {"entity_idx": 1, "name": "复旦大学", "type": "组织", "description": "用户就读的大学"},
+    {"entity_idx": 2, "name": "成都", "type": "地点设施", "description": "用户的老家"}
+  ],
+  "triplets": [
+    {"subject_name": "用户", "subject_id": 0, "predicate": "属于类型", "predicate_surface": "读", "object_name": "复旦大学", "object_id": 1, "value": null, "valid_at": "NULL", "invalid_at": "NULL"},
+    {"subject_name": "用户", "subject_id": 0, "predicate": "位于", "predicate_surface": "老家在", "object_name": "成都", "object_id": 2, "value": null, "valid_at": "NULL", "invalid_at": "NULL"}
+  ]
+}
+
+===事件抽取===
+除实体和三元组外，如果陈述描述了**一次性发生、有明确时间点**的经历/事件（如"上周完成了项目上线""昨天去了北京开会""2025年3月入职腾讯"），额外抽取到 `events`：
+- `title`：简短事件标题（如「完成项目上线」「入职腾讯」）
+- `description`：事件简述
+- `event_time`：事件发生时间，复制 dialog_at 或陈述中明确的时间，ISO8601；无法确定填 NULL
+- `participants`：事件涉及的实体名（必须是上面 entities 里出现过的 name）
+
+只有**一次性、过去发生**的经历才作为事件；稳定的画像/偏好/关系（"在腾讯工作""喜欢咖啡"）不是事件，不要抽。无事件则 events 返回 []。
+
+事件示例：
+陈述："用户上周完成了知识库项目的上线。"（dialog_at = 2025-06-10T09:00:00Z）
+输出：
+{
+  "entities": [
+    {"entity_idx": 0, "name": "用户", "type": "生命体", "description": "完成知识库项目上线的用户"},
+    {"entity_idx": 1, "name": "知识库项目", "type": "具体目标", "description": "用户上线的项目"}
+  ],
+  "triplets": [
+    {"subject_name": "用户", "subject_id": 0, "predicate": "创建了", "predicate_surface": "完成上线", "object_name": "知识库项目", "object_id": 1, "value": null, "valid_at": "NULL", "invalid_at": "NULL"}
+  ],
+  "events": [
+    {"title": "完成知识库项目上线", "description": "用户上周完成了知识库项目的上线", "event_time": "2025-06-10T09:00:00Z", "participants": ["用户", "知识库项目"]}
+  ]
+}
+
+===输出格式===
+- 使用标准 ASCII 双引号，字符串内引号转义为 \"，不使用中文引号，字符串值内不要换行。
+- 若指代无法稳定解析，返回 `{"entities": [], "triplets": [], "events": []}`。
+- 若无有效关系，triplets 返回 []；若无事件，events 返回 []。
+
+输出 JSON 结构：
+```json
+{
+  "entities": [
+    {"entity_idx": 0, "name": "string", "type": "string", "description": "string", "importance": 0.5, "confidence": 0.8}
+  ],
+  "triplets": [
+    {"subject_name": "string", "subject_id": 0, "predicate": "string", "predicate_surface": "string", "object_name": "string", "object_id": 0, "value": "string | null", "valid_at": "ISO8601 | NULL", "invalid_at": "ISO8601 | NULL", "importance": 0.5, "confidence": 0.8}
+  ],
+  "events": [
+    {"title": "string", "description": "string", "event_time": "ISO8601 | NULL", "participants": ["string"]}
+  ]
+}
+```

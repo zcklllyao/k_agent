@@ -1,0 +1,63 @@
+[project]
+name = "k-agent-api"
+version = "0.1.0"
+description = "k-agent — 个人 AI 知识库与记忆助手后端"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    # ===== Web 框架 =====
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "python-multipart==0.0.20",
+    # ===== 配置与校验 =====
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.1",
+    # ===== 业务库 PostgreSQL =====
+    "sqlalchemy[asyncio]==2.0.36",
+    "asyncpg==0.30.0",
+    "alembic==1.14.0",
+    # ===== 向量/全文 Elasticsearch =====
+    "elasticsearch==8.17.0",
+    # ===== 记忆图谱 Neo4j =====
+    "neo4j==5.27.0",
+    # ===== 缓存/队列 Redis + Celery =====
+    "redis==5.2.1",
+    "celery==5.4.0",
+    # ===== 安全：JWT / 密码 / API Key 加密 =====
+    "python-jose[cryptography]==3.3.0",
+    "passlib==1.7.4",
+    "bcrypt==4.2.1",
+    "cryptography==44.0.0",
+    # ===== HTTP 客户端（连接测试 / 网页导入） =====
+    "httpx==0.28.1",
+    "aiohttp>=3.13.5",
+    "oss2>=2.19.1",
+    "pymupdf>=1.27.2.3",
+    "python-docx>=1.2.0",
+    "markdown>=3.10.2",
+    "beautifulsoup4>=4.14.3",
+    "trafilatura>=2.0.0",
+    "tiktoken>=0.13.0",
+    "chardet>=7.4.3",
+    "pillow>=11.0.0",
+    "jinja2>=3.1.6",
+    "langchain>=1.3.2",
+    "langchain-openai>=1.2.2",
+    "langchain-core>=1.4.0",
+    "langchain-mcp-adapters>=0.2.2",
+    "json-repair>=0.60.1",
+    # ===== 评测：HuggingFace datasets（仅 eval/ 用到，但放主依赖便于 uv 同步） =====
+    "datasets>=3.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.8.4",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.uv]
+package = false

@@ -1,0 +1,141 @@
+services:
+  # ============ 存储层 ============
+  postgres:
+    image: postgres:16-alpine
+    container_name: comet-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-comet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-comet}
+      POSTGRES_DB: ${POSTGRES_DB:-comet}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-comet}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    build: ./docker/es
+    image: comet-es-ik:8.17.0
+    container_name: comet-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5.26
+    container_name: comet-neo4j
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-cometneo4j}
+      NEO4J_server_memory_heap_max__size: 1G
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: comet-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  # ============ 应用层 ============
+  api:
+    build: ./api
+    container_name: comet-api
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      ES_HOST: http://elasticsearch:9200
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./api/storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: ./api
+    container_name: comet-worker
+    command: celery -A app.celery_app.celery_app worker -l info -Q default,parse,memory,beat,research --pool=threads --concurrency=10
+    env_file:
+      - .env
+    environment:
+      POSTGRES_HOST: postgres
+      ES_HOST: http://elasticsearch:9200
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    volumes:
+      - ./api/storage:/app/storage
+    depends_on:
+      - redis
+      - api
+
+  beat:
+    build: ./api
+    container_name: comet-beat
+    command: celery -A app.celery_app.celery_app beat -l info
+    env_file:
+      - .env
+    environment:
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      - redis
+
+  web:
+    build: ./web
+    container_name: comet-web
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  pg_data:
+    name: comet_pg_data
+    external: true
+  es_data:
+    name: comet_es_data
+    external: true
+  neo4j_data:
+    name: comet_neo4j_data
+    external: true
+  redis_data:
+    name: comet_redis_data
+    external: true

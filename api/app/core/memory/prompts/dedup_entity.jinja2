@@ -1,0 +1,40 @@
+===任务===
+判断以下两个实体是否指向「同一个真实实体」。只输出合法 JSON。
+
+===实体 A===
+- 名称：{{ entity_a.name }}
+- 类型：{{ entity_a.type }}
+- 描述：{{ entity_a.description }}
+- 别名：{{ entity_a.aliases }}
+
+===实体 B===
+- 名称：{{ entity_b.name }}
+- 类型：{{ entity_b.type }}
+- 描述：{{ entity_b.description }}
+- 别名：{{ entity_b.aliases }}
+
+===参考特征===
+- 名称文本相似度：{{ ctx.name_text_sim }}
+- 名称向量相似度：{{ ctx.name_embed_sim }}
+- 名称包含关系：{{ ctx.name_contains }}
+
+===判断规则===
+- 同一实体：两者指向现实世界中同一个具体对象（如"小张"与"张三"是同一人，"GitHub"与"github.com"是同一平台）。
+- 不同实体：名称相似但实为不同对象（如"张三"与"张三的公司"），或类型语义冲突。
+- 拿不准时倾向于「不合并」，避免错误合并污染图谱。
+- 若判定同一实体，给出 canonical（保留方）：信息更完整、描述更充分的一方。
+
+===输出格式===
+只输出如下 JSON：
+```json
+{
+  "same_entity": true,
+  "canonical_idx": 0,
+  "confidence": 0.0,
+  "reason": "中文简述判断依据"
+}
+```
+- `same_entity`：是否同一实体（true/false）。
+- `canonical_idx`：同一实体时保留方，0 表示 A，1 表示 B；不同实体时填 0。
+- `confidence`：0~1 的置信度。
+- `reason`：中文简要理由。

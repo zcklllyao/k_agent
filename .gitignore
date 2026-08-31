@@ -1,0 +1,71 @@
+# Reference files (local only)
+otherfiles/
+
+# Project documents (local references only)
+files/
+
+# Editors / IDE
+.vscode/
+.idea/
+.kiro/
+.cursor/
+AGENT.md
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# SSL certificates
+web/certs/
+
+# Python / backend
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+.python-version
+
+# Node / frontend
+node_modules/
+.pnp
+.pnp.js
+dist-ssr/
+*.local
+.vite/
+coverage/
+
+# Build artifacts
+*.log
+logs/
+tmp/
+temp/
+api/storage/
+api/runtime-logs/
+.runtime-logs/
+api/celerybeat-schedule.dir
+api/celerybeat-schedule.dat
+web/tsconfig.tsbuildinfo
+api/celerybeat-schedule.bak
+
+# Evaluation artifacts
+api/eval/results/
+api/eval/cache/
+!.env.eval.example
+
+# Preserved target tool configuration
+.claude/
+.opencode/

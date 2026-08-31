@@ -1,0 +1,92 @@
+===任务===
+你是从中文对话/文本中抽取「原子陈述句」的专家。把给定文本切分成一组独立、自足、最小的陈述句，并为每句标注类型与时间属性。只输出合法 JSON。
+
+===输入===
+待分析文本：
+"""
+{{ content }}
+"""
+{% if context %}
+背景上下文（仅用于理解指代，不作为抽取来源）：
+"""
+{{ context }}
+"""
+{% endif %}
+
+===切分要求===
+- 每条陈述应是一个独立、自足的事实/观点单元；复合句要拆成多条原子句。
+- 陈述要尽量自足：能在不依赖上下文的情况下被理解（必要的指代要在切分时补全）。
+- 用户自指（"我""我的""我自己"）统一改写为「用户」。
+- 跳过纯寒暄、无信息量的客套话、与用户画像/事件无关的内容。
+- 不要编造原文没有的信息。
+
+===字段标注===
+每条陈述输出以下字段：
+
+1. `statement`：陈述句文本（中文，已做必要的指代补全）。
+
+2. `statement_type`：陈述类型，取值之一：
+   - `FACT`：客观、可验证的事实（如"用户在腾讯工作"）。
+   - `OPINION`：个人观点、感受、价值判断（如"用户认为这个方案不错"）。
+   - `PREDICTION`：对未来不确定的预测（如"用户下个月可能换工作"）。
+   - `SUGGESTION`：建议或推荐的行动（如"应该先做需求分析"）。
+
+3. `temporal_type`：时间类型，取值之一：
+   - `STATIC`：单一时间点发生、一旦发生永久成立的事件（常为过去式，如"用户上周完成了项目上线"）。
+   - `DYNAMIC`：持续一段时间、可能被新事件终止的状态（如"用户目前在学 Rust"）。
+   - `ATEMPORAL`：与时间无关、永远成立的陈述（如"地球是圆的"）。
+
+4. `has_unsolved_reference`：布尔值。若陈述中仍存在无法从上下文稳定解析的代词/指示词/省略主体（如"他""这个""那家"无法确定指代），置为 `true`，否则 `false`。
+
+5. `importance`：0~1 的小数，该陈述对刻画「用户画像/长期记忆」的重要程度。核心身份/职业/重要关系/长期目标→高（0.7~1.0）；一般偏好/习惯→中（0.4~0.7）；琐碎、临时、无长期价值→低（0~0.4）。
+
+6. `confidence`：0~1 的小数，该陈述信息的确定性。用户明确陈述的事实→高（0.8~1.0）；推测、模糊、含糊其辞→中低（0.3~0.7）。
+
+7. `has_emotional_state`：布尔值。该陈述是否流露用户的情绪/情感状态。是则为 `true` 并填下面情绪字段；纯客观陈述为 `false`。
+
+8. `emotion_type`：含情绪时填主情绪（喜悦/悲伤/愤怒/恐惧/焦虑/平静/期待/疲惫等中文），否则填 null。
+
+9. `emotion_intensity`：含情绪时填强度 0~1，否则 null。
+
+10. `emotion_keywords`：含情绪时填 1~3 个情绪关键词数组，否则 []。
+
+===输出格式===
+- 使用标准 ASCII 双引号，字符串内引号转义为 \"，不使用中文引号。
+- 字符串值内不要换行。
+- 若没有可抽取的陈述，返回 `{"statements": []}`。
+
+输出 JSON 结构：
+```json
+{
+  "statements": [
+    {
+      "statement": "string",
+      "statement_type": "FACT | OPINION | PREDICTION | SUGGESTION",
+      "temporal_type": "STATIC | DYNAMIC | ATEMPORAL",
+      "has_unsolved_reference": false,
+      "importance": 0.5,
+      "confidence": 0.8,
+      "has_emotional_state": false,
+      "emotion_type": null,
+      "emotion_intensity": null,
+      "emotion_keywords": []
+    }
+  ]
+}
+```
+
+===示例===
+
+输入文本："我在腾讯做后端开发，最近在学 Rust。今天加班到很晚，好累啊。"
+输出：
+{
+  "statements": [
+    {"statement": "用户在腾讯做后端开发", "statement_type": "FACT", "temporal_type": "DYNAMIC", "has_unsolved_reference": false, "importance": 0.9, "confidence": 0.95, "has_emotional_state": false, "emotion_type": null, "emotion_intensity": null, "emotion_keywords": []},
+    {"statement": "用户最近在学 Rust", "statement_type": "FACT", "temporal_type": "DYNAMIC", "has_unsolved_reference": false, "importance": 0.7, "confidence": 0.9, "has_emotional_state": false, "emotion_type": null, "emotion_intensity": null, "emotion_keywords": []},
+    {"statement": "用户今天加班到很晚，感到很累", "statement_type": "FACT", "temporal_type": "STATIC", "has_unsolved_reference": false, "importance": 0.4, "confidence": 0.85, "has_emotional_state": true, "emotion_type": "疲惫", "emotion_intensity": 0.7, "emotion_keywords": ["疲惫", "加班"]}
+  ]
+}
+
+输入文本："今天天气不错。"
+输出：
+{"statements": []}

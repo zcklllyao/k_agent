@@ -1,0 +1,57 @@
+## 任务
+
+复核以下「深度研究报告」是否合格,按 {{ rubric_max }} 分制对每个维度打分,并给出**结构化反馈**供修复阶段消费。
+
+## 研究主题
+
+{{ topic }}
+
+## 大纲章节(供「覆盖度」评估)
+
+{% for h in headings -%}
+- {{ h }}
+{% endfor %}
+
+## 评分维度(0~{{ rubric_max }} 分,每维独立打)
+
+{% for d in dims -%}
+- **{{ d.label }}({{ d.key }})** 权重 {{ d.weight }}:{{ d.desc }}
+{% endfor %}
+
+## 待评报告(markdown)
+
+```markdown
+{{ artifact_markdown }}
+```
+
+## 引用来源(便于核对引用对齐)
+
+{% for s in sources -%}
+- [来源 {{ s.index }}] {{ s.title }}{% if s.url %} ({{ s.url }}){% endif %}
+{% endfor %}
+
+## 输出格式(严格 JSON,不要任何代码块包裹)
+
+{
+  "raw_scores": {
+    {% for d in dims -%}
+    "{{ d.key }}": <0~{{ rubric_max }} 整数或小数>{% if not loop.last %},{% endif %}
+    {% endfor %}
+  },
+  "feedback": {
+    "summary": "用一句话总结产物整体水准与主要短板",
+    "issues": [
+      {"dim": "<维度key>", "detail": "<具体问题,带位置/引用号/章节名>"}
+    ],
+    "missing_coverage": ["<未充分回答的子问题/缺漏要点>"],
+    "wrong_citations": [<引用错位或不可信的来源号,整数>],
+    "weak_chapters": ["<论证薄弱的章节标题>"]
+  }
+}
+
+注意:
+1. 只输出上面的 JSON,**不要**任何解释、不要 markdown 代码块包裹。
+2. `raw_scores` 必须含所有维度 key,缺一不可。
+3. 没有问题的字段可以是 `[]`(空数组),但不能省略。
+4. 主题不带时效性(如纯理论 / 历史 / 数学)时,`timeliness` 给满分;但若主题明显需要时效(如行情、年度数据),严格扣分。
+5. 评分要严格:5 分是公开发表水准、3 分及格但有明显短板、1 分严重问题。
