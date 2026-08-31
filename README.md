@@ -128,11 +128,18 @@ cp .env.example .env    # Windows: copy .env.example .env
 只起四个存储容器（不起应用容器，应用本地跑）：
 
 ```bash
+# docker-compose.yml 使用 external 数据卷；新电脑首次运行需先创建
+docker volume create comet_pg_data
+docker volume create comet_es_data
+docker volume create comet_neo4j_data
+docker volume create comet_redis_data
+
 docker compose up -d postgres elasticsearch neo4j redis
 ```
 
 > Elasticsearch 镜像是自定义构建的（内置 IK 中文分词插件，见 `docker/es/Dockerfile`），首次会自动 build，需要几分钟。
 > 等容器健康后再继续。可用 `docker compose ps` 查看状态，ES 启动较慢（约 30~60 秒）。
+> Git 仓库只保存代码，不包含 PostgreSQL/ES/Neo4j/Redis 数据卷和 `api/storage` 中的本地上传文件；换电脑后默认是全新实例。如需保留账号、模型配置、任务和知识库，请另行迁移数据卷/备份。
 
 ### 第 3 步：配置并启动后端
 
