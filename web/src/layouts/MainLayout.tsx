@@ -42,7 +42,6 @@ const menuItems = [
       { key: '/chat', icon: <CommentOutlined />, label: '对话' },
       { key: '/research', icon: <FileSearchOutlined />, label: '深度研究' },
       { key: '/agent-tasks', icon: <ClockCircleOutlined />, label: '定时任务' },
-      { key: '/traces', icon: <HistoryOutlined />, label: '执行轨迹' },
     ],
   },
   {

@@ -23,7 +23,6 @@ import {
   FileWordOutlined,
   GlobalOutlined,
   HighlightOutlined,
-  HistoryOutlined,
   PlusOutlined,
   PrinterOutlined,
   SaveOutlined,
@@ -31,7 +30,7 @@ import {
   ShareAltOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import {
   researchApi,
@@ -99,7 +98,6 @@ const STEP_ICON: Record<string, string> = {
 export default function ResearchPage() {
   const { message } = App.useApp()
   const location = useLocation()
-  const navigate = useNavigate()
   const [reports, setReports] = useState<ReportBrief[]>([])
   const [topic, setTopic] = useState('')
   const [running, setRunning] = useState(false)
@@ -834,14 +832,6 @@ export default function ResearchPage() {
                       >
                         推送到飞书
                       </Button>
-                      {currentId && !running && (
-                        <Button
-                          icon={<HistoryOutlined />}
-                          onClick={() => navigate(`/traces?task_id=${currentId}`)}
-                        >
-                          执行轨迹
-                        </Button>
-                      )}
                       <Button
                         type="primary"
                         icon={<SaveOutlined />}

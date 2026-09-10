@@ -5,14 +5,12 @@ import {
   DislikeFilled,
   DislikeOutlined,
   FileTextOutlined,
-  HistoryOutlined,
   LikeFilled,
   LikeOutlined,
   ReloadOutlined,
   StarFilled,
   StarOutlined,
 } from '@ant-design/icons'
-import { Link } from 'react-router-dom'
 import MarkdownMessage from '@/components/MarkdownMessage'
 import ChatProcess from './ChatProcess'
 import HumanBubbles from './HumanBubbles'
@@ -350,20 +348,6 @@ export default function MessageItem({
                       onClick={() => onRegenerate(msg)}
                       style={{ color: '#667085', fontSize: 12 }}
                     />
-                  </Tooltip>
-                )}
-                {msg.traceId && (
-                  <Tooltip title="查看这一轮对话的执行轨迹(调了什么工具/花了多少 tokens)">
-                    <Link to={`/traces?trace_id=${msg.traceId}`}>
-                      <Button
-                        size="small"
-                        type="text"
-                        icon={<HistoryOutlined />}
-                        style={{ color: '#667085', fontSize: 12 }}
-                      >
-                        执行轨迹
-                      </Button>
-                    </Link>
                   </Tooltip>
                 )}
                 {msg.createdAt && (

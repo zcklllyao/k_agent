@@ -20,7 +20,6 @@ import FavoritesPage from './pages/FavoritesPage'
 import ProfilePage from './pages/ProfilePage'
 import SharePage from './pages/SharePage'
 import ReportSharePage from './pages/ReportSharePage'
-import TracesPage from './pages/TracesPage'
 import RequireAuth from './components/RequireAuth'
 import ErrorBoundary from './components/ErrorBoundary'
 
@@ -52,7 +51,6 @@ export default function App() {
             <Route path="graph" element={<GraphPage />} />
             <Route path="search" element={<SearchPage />} />
             <Route path="favorites" element={<FavoritesPage />} />
-            <Route path="traces" element={<TracesPage />} />
             <Route path="profile" element={<ProfilePage />} />
             <Route path="settings/models" element={<ModelConfigPage />} />
             <Route path="settings/agent" element={<AgentConfigPage />} />

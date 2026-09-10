@@ -415,21 +415,6 @@ export default function AgentTaskPage() {
                     {r.status === 'done' && r.verified === 'failed' && (
                       <Tag color="error">复核异常</Tag>
                     )}
-                    {/* 执行轨迹入口:跳 /traces 并自动展开该报告对应的 trace */}
-                    {r.status !== 'pending' && (
-                      <Button
-                        type="link"
-                        size="small"
-                        icon={<HistoryOutlined />}
-                        style={{ padding: 0, marginLeft: 'auto' }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          navigate(`/traces?task_id=${r.id}`)
-                        }}
-                      >
-                        轨迹
-                      </Button>
-                    )}
                   </div>
                 }
                 description={

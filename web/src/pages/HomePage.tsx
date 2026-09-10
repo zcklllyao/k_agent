@@ -11,7 +11,6 @@ import {
   HddOutlined,
   RightOutlined,
   SettingOutlined,
-  ThunderboltOutlined,
 } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import dayjs from 'dayjs'
@@ -35,7 +34,7 @@ const WELCOME_SEEN_KEY = 'k-agent_welcome_seen'
  *
  * 去掉:数据概览 6 KPI + 4 张大 ECharts(知识库分类/记忆新增/情绪趋势/情绪分布)
  *      + Agent 简报列表 + 快速提问输入框(对话页本身就一个输入框,仪表盘不需要二重)。
- *      Agent 工程指标(Loop 健康度 + 成本)迁去「执行轨迹 /traces」聚合在一起。
+ *      Agent 运行结果在对应的对话、研究和定时任务页面查看。
  */
 export default function HomePage() {
   const navigate = useNavigate()
@@ -167,14 +166,13 @@ export default function HomePage() {
     },
   ]
 
-  // 功能导航(精简到 6 个最高频入口)
+  // 功能导航(精简到 5 个最高频入口)
   const features = [
     { icon: <CommentOutlined />, label: '智能对话', desc: 'Agent 工具编排问答', to: '/chat', color: '#155EEF' },
     { icon: <BookOutlined />, label: '知识库', desc: '文档/网页 RAG 检索', to: '/knowledge', color: '#369F21' },
     { icon: <HddOutlined />, label: '记忆图谱', desc: '实体关系与画像', to: '/memory', color: '#7C4DFF' },
     { icon: <ExperimentOutlined />, label: '深度研究', desc: '一句话产出带来源报告', to: '/research', color: '#EB2F96' },
     { icon: <DeploymentUnitOutlined />, label: '图谱可视化', desc: '关系网络与时间线', to: '/graph', color: '#FF8A34' },
-    { icon: <ThunderboltOutlined />, label: '执行轨迹', desc: 'Loop 健康度与成本', to: '/traces', color: '#FAAD14' },
   ]
 
   const allReady = hasChat && hasEmbedding
