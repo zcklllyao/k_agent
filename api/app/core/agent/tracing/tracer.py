@@ -33,6 +33,7 @@ from datetime import datetime
 from typing import Any
 
 from app.config import settings
+from app.core.agent.tracing.error_policy import is_non_fatal_infrastructure_error
 from app.core.agent.tracing.models import SpanRecord, TraceRecord
 from app.core.agent.tracing.pricing import estimate_cost_cny
 from app.core.agent.tracing.span_recorder import get_recorder
@@ -124,6 +125,11 @@ class _SpanHandle:
     def mark_error(self, message: str) -> None:
         if self._noop or self._record is None:
             return
+        if is_non_fatal_infrastructure_error(message):
+            self._record.status = "ok"
+            self._record.error_message = None
+            self._record.attributes["non_fatal_infrastructure_error"] = message[:1000]
+            return
         self._record.status = "error"
         self._record.error_message = message[:1000]  # 防超长
 
@@ -169,8 +175,13 @@ class Tracer:
             yield _TraceCtx(record)
             record.status = "ok"
         except Exception as e:
-            record.status = "error"
-            record.error_message = str(e)[:1000]
+            if is_non_fatal_infrastructure_error(e):
+                record.status = "ok"
+                record.error_message = None
+                record.attributes["non_fatal_infrastructure_error"] = str(e)[:1000]
+            else:
+                record.status = "error"
+                record.error_message = str(e)[:1000]
             raise
         finally:
             record.finished_at = datetime.now()
@@ -217,8 +228,13 @@ class Tracer:
             if record.status == "running":
                 record.status = "ok"
         except Exception as e:
-            record.status = "error"
-            record.error_message = str(e)[:1000]
+            if is_non_fatal_infrastructure_error(e):
+                record.status = "ok"
+                record.error_message = None
+                record.attributes["non_fatal_infrastructure_error"] = str(e)[:1000]
+            else:
+                record.status = "error"
+                record.error_message = str(e)[:1000]
             raise
         finally:
             record.finished_at = datetime.now()

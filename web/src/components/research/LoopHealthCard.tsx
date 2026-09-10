@@ -42,7 +42,8 @@ export default function LoopHealthCard({ data }: Props) {
     )
   }
 
-  const passRate = data.total > 0 ? (data.passed / data.total) * 100 : 0
+  const terminalTotal = data.terminal_total ?? data.total
+  const passRate = terminalTotal > 0 ? (data.passed / terminalTotal) * 100 : 0
 
   const topFail = data.failure_dims[0]
 
@@ -90,10 +91,24 @@ export default function LoopHealthCard({ data }: Props) {
           <Text type="secondary" style={{ fontSize: 12 }}>
             通过 {data.passed} / 未达标 {data.exceeded} / 失败 {data.failed}
           </Text>
+          {data.transient_normalized > 0 && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              已排除基础设施异常 {data.transient_normalized}
+            </Text>
+          )}
+          {data.running > 0 && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              运行中 {data.running}
+            </Text>
+          )}
         </Space>
         <Progress
           percent={Math.round(passRate)}
-          success={{ percent: Math.round((data.passed / data.total) * 100) }}
+          success={{
+            percent: terminalTotal
+              ? Math.round((data.passed / terminalTotal) * 100)
+              : 0,
+          }}
           size="small"
           format={(p) => `${p}% 通过`}
           strokeColor="#369F21"

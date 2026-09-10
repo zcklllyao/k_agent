@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.agent.loop.store import LoopStore
 from app.core.agent.research.engine import run_research
+from app.core.agent.tracing.error_policy import is_non_fatal_loop_failure
 from app.core.exceptions import BizError
 from app.core.llm.chat_model import get_default_chat_config
 from app.core.logging import get_logger
@@ -585,10 +586,15 @@ class ResearchService:
         if run is None:
             return None
         iterations = await store.list_iterations(run.id)
+        loop_status = run.status
+        loop_note = run.note
+        if loop_status == "failed" and is_non_fatal_loop_failure(loop_note):
+            loop_status = "passed"
+            loop_note = None
         return {
             "run_id": str(run.id),
             "task_type": run.task_type,
-            "status": run.status,
+            "status": loop_status,
             "iterations": run.iterations,
             "final_score": run.final_score,
             "pass_threshold": run.pass_threshold,
@@ -597,7 +603,7 @@ class ResearchService:
             "generator_model": run.generator_model,
             "verifier_model": run.verifier_model,
             "verifier_kind": run.verifier_kind,
-            "note": run.note,
+            "note": loop_note,
             "started_at": run.started_at.isoformat() if run.started_at else None,
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
             "iterations_detail": [

@@ -16,6 +16,7 @@ from typing import Any
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.agent.tracing.error_policy import is_non_fatal_infrastructure_error
 from app.models.agent_trace_model import AgentSpan, AgentTrace
 
 
@@ -111,7 +112,9 @@ class AgentTraceRepository:
             cost_by_type[tt] = round(cost_by_type.get(tt, 0.0) + (t.total_cost_cny or 0.0), 6)
             if t.duration_ms:
                 duration_by_type.setdefault(tt, []).append(t.duration_ms)
-            if t.status == "error":
+            if t.status == "error" and not is_non_fatal_infrastructure_error(
+                t.error_message
+            ):
                 fail_by_type[tt] = fail_by_type.get(tt, 0) + 1
 
         # 按 task_type 平均时长 / 失败率

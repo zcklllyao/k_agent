@@ -34,11 +34,9 @@ import {
   type TraceDetail,
   type TraceListItem,
 } from '@/api/traces'
-import { dashboardApi, type LoopHealthData } from '@/api/dashboard'
 import TraceNarrative from '@/components/trace/TraceNarrative'
 import TraceTimeline from '@/components/trace/TraceTimeline'
 import CostCard from '@/components/trace/CostCard'
-import LoopHealthCard from '@/components/research/LoopHealthCard'
 
 const { Text, Title, Paragraph } = Typography
 
@@ -111,23 +109,6 @@ export default function TracesPage() {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState<TraceDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
-
-  // V0.0.5 ②:Loop 健康度(从首页迁过来,与执行轨迹在同一页聚合 Agent 运行视图)
-  const [loopHealth, setLoopHealth] = useState<LoopHealthData | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    dashboardApi
-      .loopHealth(30)
-      .then(({ data }) => {
-        if (!cancelled) setLoopHealth(data)
-      })
-      .catch(() => {
-        if (!cancelled) setLoopHealth(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -221,11 +202,6 @@ export default function TracesPage() {
     <div className="fluid-page">
       {/* Agent 运行监控 ——— V0.0.5 从首页迁过来,与执行轨迹列表组成「Agent 运行视图」 */}
       <CostCard />
-      {loopHealth && loopHealth.total > 0 && (
-        <div style={{ marginBottom: 22 }}>
-          <LoopHealthCard data={loopHealth} />
-        </div>
-      )}
       <Card title="🔍 执行轨迹" className="memory-card">
         {/* 顶部汇总条:紧凑单行(冗余的「近 N 天范围」并到筛选栏右侧,失败率仅当有失败时显示)*/}
         <div

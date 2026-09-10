@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.agent.tracing.error_policy import is_non_fatal_loop_failure
 from app.core.logging import get_logger
 from app.models.conversation_model import Conversation
 from app.models.document_model import Document
@@ -168,6 +169,7 @@ class DashboardService:
             STATUS_EXCEEDED,
             STATUS_FAILED,
             STATUS_PASSED,
+            STATUS_RUNNING,
             LoopIteration,
             LoopRun,
         )
@@ -178,21 +180,55 @@ class DashboardService:
 
         # 1) 状态分布 + 迭代/评分平均(passed/exceeded 计入)
         rows = await self.session.execute(
-            select(LoopRun.status, LoopRun.iterations, LoopRun.final_score,
-                   LoopRun.verifier_kind)
+            select(
+                LoopRun.status,
+                LoopRun.iterations,
+                LoopRun.final_score,
+                LoopRun.verifier_kind,
+                LoopRun.note,
+            )
             .where(LoopRun.user_id == user_id)
             .where(LoopRun.started_at >= since)
         )
         runs = rows.all()
         total = len(runs)
-        passed = sum(1 for r in runs if r.status == STATUS_PASSED)
-        exceeded = sum(1 for r in runs if r.status == STATUS_EXCEEDED)
-        failed = sum(1 for r in runs if r.status == STATUS_FAILED)
+        running = sum(1 for r in runs if r.status == STATUS_RUNNING)
+        transient_normalized = sum(
+            1
+            for r in runs
+            if r.status == STATUS_FAILED and is_non_fatal_loop_failure(r.note)
+        )
+        # Verifier outage is fail-open: align historical rows with the current
+        # controller behavior and keep it out of the quality-failure count.
+        normalized_status = [
+            (
+                STATUS_PASSED
+                if r.status == STATUS_FAILED and is_non_fatal_loop_failure(r.note)
+                else r.status
+            )
+            for r in runs
+        ]
+        passed = sum(1 for status in normalized_status if status == STATUS_PASSED)
+        exceeded = sum(
+            1 for status in normalized_status if status == STATUS_EXCEEDED
+        )
+        failed = sum(1 for status in normalized_status if status == STATUS_FAILED)
+        terminal_total = total - running
         # 一次通过率:第一轮就通过的占比(passed 且 iterations=1)
-        one_shot = sum(1 for r in runs if r.status == STATUS_PASSED and r.iterations == 1)
-        one_shot_rate = round(one_shot / total, 4) if total else 0.0
+        one_shot = sum(
+            1
+            for r, status in zip(runs, normalized_status, strict=True)
+            if status == STATUS_PASSED and r.iterations == 1
+        )
+        one_shot_rate = (
+            round(one_shot / terminal_total, 4) if terminal_total else 0.0
+        )
         # 平均迭代(只看 passed/exceeded,failed 是异常崩溃没意义)
-        valid_for_avg = [r for r in runs if r.status in (STATUS_PASSED, STATUS_EXCEEDED)]
+        valid_for_avg = [
+            r
+            for r, status in zip(runs, normalized_status, strict=True)
+            if status in (STATUS_PASSED, STATUS_EXCEEDED)
+        ]
         avg_iter = (
             round(sum(r.iterations for r in valid_for_avg) / len(valid_for_avg), 2)
             if valid_for_avg else 0.0
@@ -246,9 +282,12 @@ class DashboardService:
         return {
             "days": days,
             "total": total,
+            "terminal_total": terminal_total,
+            "running": running,
             "passed": passed,
             "exceeded": exceeded,
             "failed": failed,
+            "transient_normalized": transient_normalized,
             "one_shot_pass_rate": one_shot_rate,
             "avg_iterations": avg_iter,
             "avg_final_score": avg_score,

@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.agent.tracing.error_policy import is_non_fatal_infrastructure_error
 from app.core.exceptions import BizError
 from app.repositories.agent_trace_repository import AgentTraceRepository
 from app.schemas.trace_schema import (
@@ -42,7 +43,15 @@ class TraceService:
             limit=limit,
             offset=offset,
         )
-        items = [TraceListItem.model_validate(r) for r in rows]
+        items = []
+        for row in rows:
+            item = TraceListItem.model_validate(row)
+            if item.status == "error" and is_non_fatal_infrastructure_error(
+                item.error_message
+            ):
+                item.status = "ok"
+                item.error_message = None
+            items.append(item)
         return TraceListResponse(total=total, items=items)
 
     async def get_detail(
@@ -56,13 +65,27 @@ class TraceService:
                 status_code=404,
             )
         spans = await self.repo.get_spans_by_trace(trace_id)
+        span_items = []
+        for span in spans:
+            item = SpanItem.model_validate(span)
+            if item.status == "error" and is_non_fatal_infrastructure_error(
+                item.error_message
+            ):
+                item.status = "ok"
+                item.error_message = None
+            span_items.append(item)
+        trace_status = trace.status
+        trace_error = trace.error_message
+        if trace_status == "error" and is_non_fatal_infrastructure_error(trace_error):
+            trace_status = "ok"
+            trace_error = None
         return TraceDetail(
             trace_id=trace.trace_id,
             task_type=trace.task_type,
             task_id=trace.task_id,
             task_name=trace.task_name,
-            status=trace.status,
-            error_message=trace.error_message,
+            status=trace_status,
+            error_message=trace_error,
             started_at=trace.started_at,
             finished_at=trace.finished_at,
             duration_ms=trace.duration_ms,
@@ -74,7 +97,7 @@ class TraceService:
             loop_run_id=trace.loop_run_id,
             root_span_id=trace.root_span_id,
             attributes=dict(trace.attributes or {}),
-            spans=[SpanItem.model_validate(s) for s in spans],
+            spans=span_items,
         )
 
     async def cost_summary(

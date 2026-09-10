@@ -43,9 +43,12 @@ export interface AgentBriefItem {
 export interface LoopHealthData {
   days: number
   total: number
+  terminal_total: number
+  running: number
   passed: number
   exceeded: number
   failed: number
+  transient_normalized: number
   one_shot_pass_rate: number   // 一次通过率 0~1
   avg_iterations: number
   avg_final_score: number
