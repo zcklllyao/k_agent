@@ -1,7 +1,7 @@
 """网页正文抓取（含 SSRF 防护）。"""
 import ipaddress
 import socket
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 import trafilatura
@@ -62,14 +62,27 @@ async def fetch_url_content(url: str) -> tuple[str, str]:
     }
     last_err: Exception | None = None
     html = ""
+    current_url = url
     for attempt in range(2):
         try:
             async with httpx.AsyncClient(
-                timeout=20, follow_redirects=True, max_redirects=5
+                timeout=httpx.Timeout(20.0, connect=8.0), follow_redirects=False
             ) as client:
-                resp = await client.get(url, headers=headers)
-                resp.raise_for_status()
-                html = resp.text
+                for _ in range(6):
+                    if not _is_safe_url(current_url):
+                        raise BizError("重定向目标不安全", code=3002)
+                    resp = await client.get(current_url, headers=headers)
+                    if resp.is_redirect or resp.is_permanent_redirect:
+                        location = resp.headers.get("location")
+                        if not location:
+                            raise BizError("网页重定向缺少目标", code=3003)
+                        current_url = urljoin(current_url, location)
+                        continue
+                    resp.raise_for_status()
+                    html = resp.text
+                    break
+                else:
+                    raise BizError("网页重定向次数过多", code=3003)
                 break
         except httpx.HTTPError as e:
             last_err = e

@@ -11,11 +11,19 @@ logger = get_logger(__name__)
 
 class LocalStorage(StorageBackend):
     def __init__(self) -> None:
-        self.root = Path(settings.storage_dir)
+        self.root = Path(settings.storage_dir).expanduser().resolve()
         self.root.mkdir(parents=True, exist_ok=True)
 
     def _path(self, file_key: str) -> Path:
-        return self.root / file_key
+        candidate = Path(file_key)
+        if candidate.is_absolute():
+            raise ValueError("absolute file keys are not allowed")
+        path = (self.root / candidate).resolve()
+        try:
+            path.relative_to(self.root)
+        except ValueError as exc:
+            raise ValueError("file key escapes storage root") from exc
+        return path
 
     async def save(self, file_key: str, content: bytes) -> str:
         def _write() -> None:

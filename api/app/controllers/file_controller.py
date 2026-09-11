@@ -34,9 +34,16 @@ async def get_file(file_key: str, user: User = Depends(get_current_user)):
     if not file_key.startswith(f"{user.id}/"):
         raise BizError("无权访问该文件", code=3031, status_code=403)
     storage = get_storage()
-    if not await storage.exists(file_key):
+    try:
+        exists = await storage.exists(file_key)
+    except ValueError as exc:
+        raise BizError("invalid file path", code=3031, status_code=403) from exc
+    if not exists:
         raise BizError("文件不存在", code=3032, status_code=404)
-    content = await storage.get(file_key)
+    try:
+        content = await storage.get(file_key)
+    except ValueError as exc:
+        raise BizError("invalid file path", code=3031, status_code=403) from exc
     ext = ("." + file_key.rsplit(".", 1)[-1].lower()) if "." in file_key else ""
     media_type = _MIME.get(ext, "application/octet-stream")
     return Response(content=content, media_type=media_type)
