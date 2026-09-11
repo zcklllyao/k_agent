@@ -228,6 +228,34 @@ class ResearchService:
     async def _run_research_bg(
         self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest
     ) -> None:
+        """Run manual research with the same whole-task deadline as scheduled runs.
+
+        The previous implementation only timed out individual model/fetch calls.
+        A stuck stream, database operation, or third-party client could therefore
+        leave a report running forever.  Keep the implementation in a separate
+        coroutine so ``wait_for`` can cancel the complete task reliably.
+        """
+        try:
+            await asyncio.wait_for(
+                self._run_research_bg_impl(user_id, report_id, body),
+                timeout=settings.research_task_timeout,
+            )
+        except asyncio.TimeoutError:
+            message = f"研究超时（超过 {settings.research_task_timeout} 秒）"
+            logger.error("研究后台任务超时: report=%s", report_id)
+            snapshot = await bus.get_stream_buffer(str(report_id))
+            await self._fail(
+                report_id,
+                message,
+                (snapshot or {}).get("partial_md", ""),
+                (snapshot or {}).get("plan"),
+                (snapshot or {}).get("sources", []),
+            )
+            await bus.publish(str(report_id), "error", {"message": message})
+
+    async def _run_research_bg_impl(
+        self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest
+    ) -> None:
         """后台研究任务：独立 session 跑引擎，广播事件 + 写续传缓冲，结束落库。"""
         rid = str(report_id)
         n = 0  # 全局 token 序号（跨章节，用于续传去重）
