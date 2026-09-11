@@ -217,7 +217,7 @@ npm install
 npm run dev
 ```
 
-打开 `http://localhost:5173`（开发环境 `/api` 默认代理到 8001，可用 `VITE_API_PROXY_TARGET` 覆盖，无需额外配置跨域）。
+打开 `http://localhost:5173`（开发环境 `/api` 默认代理到 8000；如果本地 API 使用其他端口，可通过 `VITE_API_PROXY_TARGET` 覆盖，无需额外配置跨域）。
 
 ### 第 6 步：注册账号并配置模型
 
