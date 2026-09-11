@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     celery_broker_url: str = "redis://localhost:6379/1"
     celery_result_backend: str = "redis://localhost:6379/2"
 
+    # LLM SDK retry budget; higher-level research components own backoff.
+    llm_sdk_max_retries: int = 1
+
     # 文件存储
     storage_backend: str = "local"  # local | oss
     storage_dir: str = "./storage"

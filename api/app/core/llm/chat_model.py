@@ -9,6 +9,7 @@ from langchain_openai import ChatOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BizError
+from app.config import settings
 from app.core.security import decrypt_secret
 from app.models.model_config_model import ModelConfig
 from app.repositories.model_config_repository import ModelConfigRepository
@@ -55,7 +56,7 @@ def build_chat_model(
         stream_usage=True,
         # 兼容自建 OpenAI 网关偶发的连接重置/半截 SSE；研究阶段还会
         # 在关键规划请求外层再做一次退避重试。
-        max_retries=4,
+        max_retries=settings.llm_sdk_max_retries,
     )
 
 
