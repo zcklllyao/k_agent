@@ -4,7 +4,9 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.dependencies import get_current_user
+from app.core.storage.upload_limits import read_upload_limited
 from app.core.response import success
 from app.db.postgres import get_session
 from app.models.user_model import User
@@ -22,7 +24,7 @@ async def upload_document(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    content = await file.read()
+    content = await read_upload_limited(file, settings.max_upload_bytes)
     service = DocumentService(session)
     doc = await service.upload(user.id, file.filename or "未命名", content, kb_id)
     return success(await service.to_out_dict(doc), "上传成功，正在解析")

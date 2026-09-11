@@ -5,9 +5,11 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.dependencies import get_current_user
 from app.core.response import success
 from app.core.storage import build_file_key, get_storage
+from app.core.storage.upload_limits import read_upload_limited
 from app.db.postgres import get_session
 from app.models.user_model import User
 from app.schemas.chat_schema import (
@@ -126,7 +128,7 @@ async def upload_chat_image(
     import uuid as _uuid
     from pathlib import Path
 
-    content = await file.read()
+    content = await read_upload_limited(file, settings.max_image_upload_bytes)
     ext = Path(file.filename or "img.jpg").suffix.lower() or ".jpg"
     file_key = build_file_key(str(user.id), "chat", str(_uuid.uuid4()), ext)
     storage = get_storage()
@@ -157,7 +159,7 @@ async def upload_chat_file(
     if ext not in allowed:
         raise BizError("仅支持 PDF / Word / Markdown / TXT / HTML", code=3001)
 
-    content = await file.read()
+    content = await read_upload_limited(file, settings.max_upload_bytes)
     try:
         text = parse_document(ext, content)
     except BizError:
@@ -205,7 +207,7 @@ async def transcribe_audio(
     # 取用户默认 ASR 配置（没配则报 2010，前端降级）
     config = await get_default_config_for_type(session, user.id, "asr", "语音识别")
 
-    content = await file.read()
+    content = await read_upload_limited(file, settings.max_audio_upload_bytes)
     if not content:
         raise BizError("音频为空", code=2037)
     ext = Path(file.filename or "audio.mp3").suffix.lower() or ".mp3"

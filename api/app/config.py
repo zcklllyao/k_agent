@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # 文件存储
     storage_backend: str = "local"  # local | oss
     storage_dir: str = "./storage"
+    max_upload_bytes: int = 50 * 1024 * 1024
+    max_image_upload_bytes: int = 10 * 1024 * 1024
+    max_audio_upload_bytes: int = 25 * 1024 * 1024
 
     # 阿里云 OSS
     oss_endpoint: str = ""

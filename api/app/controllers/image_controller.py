@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.dependencies import get_current_user
+from app.core.storage.upload_limits import read_upload_limited
 from app.core.response import success
 from app.db.postgres import get_session
 from app.models.user_model import User
@@ -27,7 +29,7 @@ async def upload_image(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    content = await file.read()
+    content = await read_upload_limited(file, settings.max_image_upload_bytes)
     service = ImageService(session)
     img = await service.upload(user.id, file.filename or "image", content, kb_id)
     return success(await service.to_out_dict(img), "上传成功，正在处理")
