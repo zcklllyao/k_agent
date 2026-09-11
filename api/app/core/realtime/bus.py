@@ -4,6 +4,7 @@
 提供回合锁与断线续传缓冲，避免同一任务重复生成。
 """
 import json
+import secrets
 from collections.abc import AsyncGenerator
 
 from app.core.logging import get_logger
@@ -15,7 +16,7 @@ logger = get_logger(__name__)
 _CHANNEL_PREFIX = "k-agent:stream:"
 _LOCK_PREFIX = "k-agent:stream:lock:"
 # AI 回合锁的最大持有时间（秒），防异常导致死锁
-_LOCK_TTL = 120
+_LOCK_TTL = 1800
 # 订阅空闲心跳间隔（秒），保活长连接，避免反向代理空闲超时断开
 _PING_INTERVAL = 25
 
@@ -123,19 +124,24 @@ async def clear_stream_buffer(conv_id: str) -> None:
         logger.warning("清流式缓冲失败: conv=%s err=%s", conv_id, e)
 
 
-async def acquire_turn_lock(conv_id: str) -> bool:
+async def acquire_turn_lock(conv_id: str) -> str | None:
     """尝试拿下某会话的 AI 回合锁（SET NX EX）。拿到返回 True。"""
     try:
-        ok = await get_redis().set(_lock_key(conv_id), "1", nx=True, ex=_LOCK_TTL)
-        return bool(ok)
+        owner = secrets.token_urlsafe(24)
+        ok = await get_redis().set(_lock_key(conv_id), owner, nx=True, ex=_LOCK_TTL)
+        return owner if ok else None
     except Exception as e:
         logger.warning("获取对话回合锁失败: conv=%s err=%s", conv_id, e)
         # 拿锁失败时保守放行（宁可偶发重复也不卡死对话）
-        return True
+        return None
 
 
-async def release_turn_lock(conv_id: str) -> None:
+async def release_turn_lock(conv_id: str, owner: str | None) -> None:
+    if not owner:
+        return
     try:
-        await get_redis().delete(_lock_key(conv_id))
+        script = ("if redis.call('get', KEYS[1]) == ARGV[1] then "
+                  "return redis.call('del', KEYS[1]) else return 0 end")
+        await get_redis().eval(script, 1, _lock_key(conv_id), owner)
     except Exception as e:
         logger.warning("释放对话回合锁失败: conv=%s err=%s", conv_id, e)

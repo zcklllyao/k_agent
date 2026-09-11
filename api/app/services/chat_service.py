@@ -415,10 +415,11 @@ class ChatService:
         pubsub = await bus.open_channel(cid)
         try:
             # 拿回合锁：若已有同会话生成在跑（用户重复发/并发），不重复触发，只转发现有生成
-            if await bus.acquire_turn_lock(cid):
+            lock_owner = await bus.acquire_turn_lock(cid)
+            if lock_owner:
                 task = asyncio.create_task(
                     self._run_chat_turn_bg(
-                        user_id, conv_uuid, body, attachments, skip_user_message
+                        user_id, conv_uuid, body, attachments, skip_user_message, lock_owner
                     )
                 )
                 _BG_TASKS.add(task)
@@ -509,6 +510,7 @@ class ChatService:
         body: ChatStreamRequest,
         attachments: list[dict],
         skip_user_message: bool,
+        lock_owner: str,
     ) -> None:
         """后台生成任务：用独立 session 跑问答，逐 token 广播到频道 + 写续传缓冲，
         完成后落库 assistant 消息并派发副作用（记忆/图片/情绪），最后广播 done。
@@ -659,7 +661,7 @@ class ChatService:
             await bus.publish(cid, "error", {"message": f"生成失败：{user_error}"})
         finally:
             await bus.clear_stream_buffer(cid)
-            await bus.release_turn_lock(cid)
+            await bus.release_turn_lock(cid, lock_owner)
 
     async def _generate_events(
         self,

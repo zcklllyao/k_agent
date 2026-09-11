@@ -90,9 +90,10 @@ class ResearchService:
 
         pubsub = await bus.open_channel(rid)
         try:
-            if await bus.acquire_turn_lock(rid):
+            lock_owner = await bus.acquire_turn_lock(rid)
+            if lock_owner:
                 task = asyncio.create_task(
-                    self._run_research_bg(user_id, uuid.UUID(rid), body)
+                    self._run_research_bg(user_id, uuid.UUID(rid), body, lock_owner)
                 )
                 _BG_TASKS.add(task)
                 task.add_done_callback(_BG_TASKS.discard)
@@ -226,7 +227,8 @@ class ResearchService:
                 return
 
     async def _run_research_bg(
-        self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest
+        self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest,
+        lock_owner: str,
     ) -> None:
         """Run manual research with the same whole-task deadline as scheduled runs.
 
@@ -237,7 +239,7 @@ class ResearchService:
         """
         try:
             await asyncio.wait_for(
-                self._run_research_bg_impl(user_id, report_id, body),
+                self._run_research_bg_impl(user_id, report_id, body, lock_owner),
                 timeout=settings.research_task_timeout,
             )
         except asyncio.TimeoutError:
@@ -254,7 +256,8 @@ class ResearchService:
             await bus.publish(str(report_id), "error", {"message": message})
 
     async def _run_research_bg_impl(
-        self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest
+        self, user_id: uuid.UUID, report_id: uuid.UUID, body: ResearchStartRequest,
+        lock_owner: str,
     ) -> None:
         """后台研究任务：独立 session 跑引擎，广播事件 + 写续传缓冲，结束落库。"""
         rid = str(report_id)
@@ -367,7 +370,7 @@ class ResearchService:
             await bus.publish(rid, "error", {"message": f"研究失败：{e}"})
         finally:
             await bus.clear_stream_buffer(rid)
-            await bus.release_turn_lock(rid)
+            await bus.release_turn_lock(rid, lock_owner)
 
     # ── 状态/落库辅助 ──
 
