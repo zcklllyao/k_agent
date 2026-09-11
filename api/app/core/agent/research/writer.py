@@ -96,7 +96,13 @@ async def summarize(model: ChatOpenAI, report_title: str, body: str) -> dict:
         text = resp.content if isinstance(resp.content, str) else str(resp.content)
     except Exception as e:
         logger.warning("研究汇总 LLM 调用失败: %s", e)
-        return {"tldr": "", "key_points": []}
+        lines = [
+            line.strip()
+            for line in body.splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        fallback = " ".join(lines[:3])[:360]
+        return {"tldr": fallback, "key_points": lines[:3]}
 
     data = parse_json_object(text) or {}
     tldr = (data.get("tldr") or "").strip()

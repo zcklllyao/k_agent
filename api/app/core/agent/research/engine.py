@@ -328,6 +328,7 @@ async def run_research(
 
         # ── 6. 分章节写作（吃分配的要点 + 前文摘要避免重复）──
         written: list[tuple[str, str]] = []
+        failed_sections: list[str] = []
         prev_summaries: list[str] = []
         total = len(curated)
         for i, sec in enumerate(curated, 1):
@@ -357,6 +358,7 @@ async def run_research(
                     # A single section must not discard the sections already
                     # written.  Keep a visible placeholder and continue.
                     logger.warning("章节生成异常，保留部分报告并继续：heading=%s err=%s", sec.heading, exc)
+                    failed_sections.append(sec.heading)
                     if buf:
                         buf.append("\n\n> ⚠️ 本章节生成中断，以上为已生成内容。\n")
                     else:
@@ -375,6 +377,12 @@ async def run_research(
 
         # ── 8. 拼装 + 引用映射 ──
         markdown = _build_markdown(plan.title, summary, written, sources)
+        if failed_sections:
+            yield {
+                "type": "quality_warning",
+                "detail": "部分章节生成失败：" + "、".join(failed_sections),
+                "failed_sections": failed_sections,
+            }
 
         # ── 9. Verifier Loop(V0.0.5 ②):独立 LLM-as-judge 复核 + 不合格 Patch/Rewrite 回炉 ──
         final_markdown = markdown

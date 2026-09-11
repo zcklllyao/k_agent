@@ -55,7 +55,10 @@ class GitCodeService:
             if report.created_at
             else "unknown-time"
         )
-        return f"reports/{self._safe_title(report)}_{timestamp}.md"
+        # Include a stable report suffix so same-title reports created in the
+        # same second never overwrite one another in the archive repository.
+        suffix = str(report.id).split("-")[0] if report.id else "unknown"
+        return f"reports/{self._safe_title(report)}_{timestamp}_{suffix}.md"
 
     @staticmethod
     def _legacy_file_path(report: ResearchReport) -> str:

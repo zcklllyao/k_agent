@@ -212,6 +212,7 @@ class ResearchService:
                 "progress",
                 "section_start",
                 "section_done",
+                "quality_warning",
                 "report",
             }:
                 yield _sse(ev, data)
@@ -341,6 +342,10 @@ class ResearchService:
                         final_sources = ev.get("sources", [])
                         final_title = ev.get("title", title)
                         await bus.publish(rid, "report", ev)
+                    elif etype == "quality_warning":
+                        await bus.publish(rid, "quality_warning", ev)
+                        steps.append({"icon": "warning", "ok": False, "text": ev.get("detail", "")})
+                        await _flush("generating")
                     elif etype and etype.startswith("loop_"):
                         # V0.0.5 ② Verifier Loop 全套事件透传给前端
                         # (loop_started / loop_verify_start / loop_verify_done /
